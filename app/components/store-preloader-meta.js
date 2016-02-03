@@ -1,0 +1,1 @@
+export { default } from 'ember-fastboot-store-preloader/components/store-preloader-meta';

@@ -6,6 +6,8 @@ const Router = Ember.Router.extend({
 });
 
 Router.map(function() {
+  this.route('serializes-snapshots');
+  this.route('deserializes-snapshots');
 });
 
 export default Router;
