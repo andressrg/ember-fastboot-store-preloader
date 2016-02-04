@@ -4,23 +4,13 @@ import Ember from 'ember';
 const { inject, get, set } = Ember;
 
 
-function toBase64(str='') {
-  if (typeof Buffer !== 'undefined') {
-    /* globals Buffer */
-    return (new Buffer(str)).toString('base64');
-  } else {
-    return btoa(str);
-  }
+function encodeForDOM(str='') {
+  return encodeURI(str);
 }
 
 
-function fromBase64(str) {
-  if (typeof Buffer !== 'undefined') {
-    /* globals Buffer */
-    return new Buffer(str, 'base64').toString('binary');
-  } else {
-    return atob(str);
-  }
+function decodeFromDOM(str) {
+  return decodeURI(str);
 }
 
 
@@ -45,12 +35,12 @@ export default Ember.Service.extend({
 
         return {
           type: modelName,
-          records: records.map(record => record.toJSON({ includeId: true })),
+          records: records.map(record => record.serialize({ includeId: true })),
         };
       })
       .reduce((a, b) => b.records.length > 0 ? a.concat(b) : a, []);
 
-    const serializedData = toBase64(JSON.stringify(records));
+    const serializedData = encodeForDOM(JSON.stringify(records));
     set(this, 'serializedData', serializedData);
   },
 
@@ -58,13 +48,14 @@ export default Ember.Service.extend({
   deserialize(encodedSerializedData) {
     if (isFastboot()) { return; }
 
-    const serializedData = fromBase64(encodedSerializedData);
+    const serializedData = decodeFromDOM(encodedSerializedData);
     const data = JSON.parse(serializedData);
     
     const store = get(this, 'store');
     data.forEach(typeHash => {
       typeHash.records.forEach(recordData => {
-        store.push(store.normalize(typeHash.type, recordData));
+        const normalizedData = store.normalize(typeHash.type, recordData);
+        store.push(normalizedData);
       });
     });
   },
