@@ -24,11 +24,44 @@ export default Ember.Service.extend({
   store: inject.service(),
   serializedData: null,
 
+  keyValueCache: null,
+  modelNamesList: null,
+  deserializedKeyValueCache: null,
 
-  serialize(modelNamesList=[], forceSerialization=false) {
+
+  init() {
+    this._super(...arguments);
+    this.keyValueCache = {};
+    this.modelNamesList = [];
+    this.deserializedKeyValueCache = {};
+  },
+
+
+  peekByKey(key) {
+    return get(this, `deserializedKeyValueCache.${key}`);
+  },
+
+
+  serializeByKey(key, value, forceSerialization=false) {
     if (!isFastboot() && !forceSerialization) { return; }
 
+    set(this, `keyValueCache.${key}`, value);
+    this._serializeAll();
+  },
+
+
+  serializeModels(modelNamesList=[], forceSerialization=false) {
+    if (!isFastboot() && !forceSerialization) { return; }
+
+    set(this, 'modelNamesList',  modelNamesList);
+    this._serializeAll();
+  },
+
+
+  _serializeAll() {
     const store = get(this, 'store');
+    const keyValueCache = get(this, 'keyValueCache');
+    const modelNamesList = get(this, 'modelNamesList');
     const records = modelNamesList
       .map(modelName => {
         const records = store.peekAll(modelName);
@@ -40,24 +73,28 @@ export default Ember.Service.extend({
       })
       .reduce((a, b) => b.records.length > 0 ? a.concat(b) : a, []);
 
-    const serializedData = encodeForDOM(JSON.stringify(records));
+    const serializedData = encodeForDOM(JSON.stringify({
+      records,
+      keyValueCache,
+    }));
     set(this, 'serializedData', serializedData);
   },
 
 
-  deserialize(encodedSerializedData) {
-    if (isFastboot()) { return; }
+  deserialize(encodedSerializedData, forceDeserialization=false) {
+    if (isFastboot() && !forceDeserialization) { return; }
 
     const serializedData = decodeFromDOM(encodedSerializedData);
     const data = JSON.parse(serializedData);
     
     const store = get(this, 'store');
-    data.forEach(typeHash => {
+    data.records.forEach(typeHash => {
       typeHash.records.forEach(recordData => {
         const normalizedData = store.normalize(typeHash.type, recordData);
         store.push(normalizedData);
       });
     });
-  },
 
+    set(this, 'deserializedKeyValueCache', data.keyValueCache);
+  },
 });

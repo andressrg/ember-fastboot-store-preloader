@@ -36,6 +36,6 @@ export default Ember.Route.extend({
   afterModel() {
     const storePreloader = get(this, 'storePreloader');
 
-    return storePreloader.serialize(['book', 'chapter'], true);
+    return storePreloader.serializeModels(['book', 'chapter'], true);
   }
 });
