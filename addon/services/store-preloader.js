@@ -1,7 +1,7 @@
 import Ember from 'ember';
 
 
-const { inject, get, set } = Ember;
+const { inject, get, set, RSVP } = Ember;
 
 
 function encodeForDOM(str='') {
@@ -16,6 +16,58 @@ function decodeFromDOM(str) {
 
 function isFastboot() {
   return typeof FastBoot !== 'undefined';
+}
+
+
+function forEachAsync(array, task) {
+  return new RSVP.Promise((resolve, reject) => {
+    let i = 0;
+
+    function loop() {
+      if (i < array.length) {
+        const item = array[i];
+
+        i++;
+
+        RSVP.resolve()
+          .then(() => task(item))
+          .then(loop, reject);
+      } else {
+        resolve();
+      }
+    }
+
+    loop();
+  });
+}
+
+function chunk(arr, chunkSize) {
+  return Array(Math.ceil(arr.length / chunkSize))
+    .fill()
+    .map((unused, i) => arr.slice(i * chunkSize, i * chunkSize + chunkSize));
+}
+
+
+function nextEmberLoopPromise() {
+  return new RSVP.Promise(resolve => {
+    Ember.run.next(null, resolve);
+  });
+}
+
+
+function nextRAFPromise() {
+  return new RSVP.Promise(resolve => {
+    requestAnimationFrame(resolve);
+  });
+}
+
+
+function runNextPromise() {
+  if (window.requestAnimationFrame) {
+    return nextRAFPromise();
+  } else {
+    return nextEmberLoopPromise();
+  }
 }
 
 
@@ -96,5 +148,29 @@ export default Ember.Service.extend({
     });
 
     set(this, 'deserializedKeyValueCache', data.keyValueCache);
+  },
+
+
+  deserializeAsync(encodedSerializedData, forceDeserialization=false, { chunkSize = 5 }={}) {
+    if (isFastboot() && !forceDeserialization) { return; }
+
+    const serializedData = decodeFromDOM(encodedSerializedData);
+    const data = JSON.parse(serializedData);
+    
+    const store = get(this, 'store');
+
+    return forEachAsync(data.records, typeHash => {
+        return forEachAsync(chunk(typeHash.records, chunkSize), recordsChunk => {
+          recordsChunk.forEach(recordData => {
+            const normalizedData = store.normalize(typeHash.type, recordData);
+            store.push(normalizedData);
+          });
+
+          return runNextPromise();
+        });
+      })
+      .then(() => {
+        set(this, 'deserializedKeyValueCache', data.keyValueCache);
+      });
   },
 });
