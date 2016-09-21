@@ -95,9 +95,7 @@ export default Ember.Service.extend({
     const $metaElement = Ember.$('meta[data-id=store-preloader-meta-id]');
     if (!$metaElement || $metaElement.length === 0) { return RSVP.resolve(); }
 
-    const storePreloader = get(this, 'storePreloader');
-
-    return storePreloader.deserializeAsync($metaElement.attr('content'));
+    return this.deserializeAsync($metaElement.attr('content'));
   },
 
 
